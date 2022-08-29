@@ -1,0 +1,46 @@
+version: '3'
+services:
+  es:
+    image: "eventstore/eventstore:21.10.1-buster-slim"
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:2113/stats || exit 1"]
+      interval: 5s
+      timeout: 2s
+    deploy:
+      replicas: 1
+    environment:
+      EVENTSTORE_INSECURE: "true"
+      EVENTSTORE_RUN_PROJECTIONS: "all"
+      EVENTSTORE_START_STANDARD_PROJECTIONS: "true"
+      EVENTSTORE_ENABLE_EXTERNAL_TCP: "true"
+      EVENTSTORE_ENABLE_ATOM_PUB_OVER_HTTP: "true"
+    ports:
+      - 12113:2113
+      - 11113:1113
+    volumes:
+      - ./eventstore/:/var/lib/eventstore/
+
+  generator-1:
+    image: eventstore-timeout-tester:0.0.0
+    restart: always
+    deploy:
+      replicas: 1
+    depends_on:
+      es:
+        condition: service_healthy
+    environment:
+      MODE: 'generator'
+      CONNECTION_STRING: "esdb://es:2113?tls=false"
+
+  subscriber-1:
+    image: eventstore-timeout-tester:0.0.0
+    restart: always
+    deploy:
+      replicas: 50
+    depends_on:
+      es:
+        condition: service_healthy
+    environment:
+      MODE: 'subscriber'
+      CONNECTION_STRING: "esdb://es:2113?tls=false"
